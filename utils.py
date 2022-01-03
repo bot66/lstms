@@ -3,8 +3,8 @@ import pandas as pd
 import torch
 
 class SpamText(Dataset):
-    def __init__(self,cvs_path,transform,target_transform={"ham":[1.0,0.0],"spam":[0.0,1.0]}):
-        self.df=pd.read_csv(cvs_path)
+    def __init__(self,csv_path,transform,target_transform={"ham":[1.0,0.0],"spam":[0.0,1.0]}):
+        self.df=pd.read_csv(csv_path)
         self.X=self.df["Message"].values
         self.Y=self.df["Category"].values
         self.tokenizer=transform
