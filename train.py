@@ -1,6 +1,6 @@
 import torch
 from transformers import BertTokenizerFast
-from utils import SpamText,create_dataloader
+from utils import SpamText
 from networks import ManyToOne
 from torch.optim import Adam
 from torch.utils.data import DataLoader
