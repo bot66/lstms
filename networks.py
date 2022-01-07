@@ -20,6 +20,7 @@ class LSTM(nn.Module):
             h,c=prev_states
         x=x.permute(1,0,2) #[L,N,X]
         h_states =[] # all timestep hidden states
+        c_states = [] # all timestep cell states
         for x_i in x:
             inp=torch.cat([x_i,h],dim=1)
             forget_gate=torch.sigmoid(self.wf(inp))
@@ -29,8 +30,9 @@ class LSTM(nn.Module):
             c=forget_gate.mul(c)+input_gate.mul(candidate)
             h=output_gate.mul(torch.tanh(c))
             h_states.append(h)
+            c_states.append(c)
 
-        return h_states
+        return (h_states[-1],h_states,c_states) # last hidden state, hidden states, cell states
 
 class Attention(nn.Module):
 #attention in seq2seq,reproduce "Luong attention"(https://arxiv.org/pdf/1508.04025.pdf)
@@ -54,8 +56,8 @@ class ManyToOne(nn.Module):
     def forward(self,x):
         #input shape [N,L,X]
         x=self.embedding(x)
-        h=self.lstm(x)
-        x=self.linear(h[-1])
+        h,h_s,c_s=self.lstm(x)
+        x=self.linear(h)
 
         return x 
 
@@ -79,7 +81,7 @@ class Decoder(nn.Module):
         self.embedding=nn.Embedding(vocab_size,input_size,padding_idx=0)
         self.lstm=LSTM(input_size,hidden_size)
         self.linear=nn.Linear(hidden_size,vocab_size)
-    def forward(self,x):
+    def forward(self,x,prev_states):
         #input shape [N,L,X]
         x=self.embedding(x)
         h=self.lstm(x)
@@ -102,5 +104,7 @@ class ManyToMany(nn.Module):
         self.attention=None
         
     def forward(self,x,y):
+        #input shape [N,L,X]
         context,enc_hidden_states=self.encoder(x)
-        
+        #[BOS]
+        bos=x[:,0,:]
