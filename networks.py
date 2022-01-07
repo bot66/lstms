@@ -38,10 +38,11 @@ class Attention(nn.Module):
 #attention in seq2seq,reproduce "Luong attention"(https://arxiv.org/pdf/1508.04025.pdf)
     def __init__(self,decoder_hidden_size,encoder_hidden_size):
         super().__init__()
-        self.linear=nn.Linear(decoder_hidden_size,encoder_hidden_size)
+        self.score=nn.Linear(decoder_hidden_size,encoder_hidden_size)
     def forward(self,x,encoder_states):
-        x=self.linear(x)
-        x=x.matmul(encoder_states)
+        score=self.score(x)
+        score=score.matmul(encoder_states)
+        score=score.softmax(dim=1)
 
         return x
         
@@ -54,7 +55,7 @@ class ManyToOne(nn.Module):
         self.lstm=LSTM(input_size,hidden_size)
         self.linear=nn.Linear(hidden_size,output_size)
     def forward(self,x):
-        #input shape [N,L,X]
+        #input shape [N,L]
         x=self.embedding(x)
         h,h_s,c_s=self.lstm(x)
         x=self.linear(h)
@@ -69,11 +70,11 @@ class Encoder(nn.Module):
         self.lstm=LSTM(input_size,hidden_size)
 
     def forward(self,x):
-        #input shape [N,L,X]
+        #input shape [N,L]
         x=self.embedding(x)
-        h_states=self.lstm(x)
+        h,h_states,c_states=self.lstm(x)
 
-        return (h_states[-1],h_states) 
+        return (h,h_states,c_states) 
 
 class Decoder(nn.Module):
     def __init__(self,vocab_size,input_size,hidden_size):
@@ -82,12 +83,11 @@ class Decoder(nn.Module):
         self.lstm=LSTM(input_size,hidden_size)
         self.linear=nn.Linear(hidden_size,vocab_size)
     def forward(self,x,prev_states):
-        #input shape [N,L,X]
+        #input shape [N,L]
         x=self.embedding(x)
-        h=self.lstm(x)
-        x=self.linear(h[-1])
+        h,h_s,c_s=self.lstm(x,prev_states)
 
-        return x
+        return h
  
 class ManyToMany(nn.Module):
     #seq2seq with "Luong attention"(https://arxiv.org/pdf/1508.04025.pdf)
@@ -102,9 +102,22 @@ class ManyToMany(nn.Module):
         self.encoder=Encoder(enc_vocab_size,enc_emb_size,hidden_size)
         self.decoder=Decoder(dec_vocab_size,dec_emb_size,hidden_size)
         self.attention=None
+        self.linear=nn.Linear(hidden_size,dec_vocab_size)
         
     def forward(self,x,y):
-        #input shape [N,L,X]
-        context,enc_hidden_states=self.encoder(x)
+        #input shape [N,L]
+        context,enc_hidden_states,enc_cell_states=self.encoder(x)
         #[BOS]
-        bos=x[:,0,:]
+        inp=x[:,0:1]
+        pred_logits=[]
+        for i in range(1,y.shape[1]):
+            dec_h=self.decoder(inp,\
+                                    (context,enc_cell_states[-1]))
+            
+            logits=self.linear(dec_h)
+            pred_id=logits.softmax(dim=1).argmax(dim=1,keepdim=True)
+            pred_logits.append(logits)
+            inp=pred_id
+
+        return pred_logits
+        

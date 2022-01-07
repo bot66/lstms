@@ -23,7 +23,7 @@ def run():
     model.to(device)
 
     #hyp
-    epoches = 30
+    epoches = 1
     lr=0.01
     batch_size=8
 
@@ -38,10 +38,11 @@ def run():
         running_loss = 0.0
         for i,b in enumerate(train_dataloader):
             optimizer.zero_grad()
-            logits=model(b[0].to(device))
-            loss = criteria(logits,b[1].to(device))
-            loss.backward()
-            optimizer.step()            
+            logits=model(b[0].to(device),b[1].to(device))
+            break
+            # loss = criteria(logits,b[1].to(device))
+            # loss.backward()
+            # optimizer.step()            
 
 if __name__=="__main__":
     run()
