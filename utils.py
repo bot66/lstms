@@ -20,3 +20,25 @@ class SpamText(Dataset):
         target=torch.tensor(self.target_transform[self.Y[idx]])
         return  ((feat,attension_mask),target)
     
+class EnglishToChinese(Dataset):
+    def __init__(self,text_file,transform,target_transform):
+        with open(text_file,"r") as f:
+            lines=f.readlines()
+        self.ens=[x.split("\t")[0].strip() for x in lines]
+        self.cns=[x.split("\t")[1].strip() for x in lines]
+        self.tokenizer1=transform
+        self.tokenizer2=target_transform
+
+    def __len__(self):
+        return len(self.ens)
+    
+    def __getitem__(self, idx):
+        en=self.ens[idx]
+        cn=self.cns[idx]
+        en=self.tokenizer1.encode(en)
+        en.truncate(32)
+        en.pad(32)
+        cn=self.tokenizer2.encode(cn)
+        cn.truncate(32)
+        cn.pad(32)        
+        return (torch.tensor(en.ids),torch.tensor(cn.ids)) 
