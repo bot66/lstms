@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-
+import random
 
 class LSTM(nn.Module):
     def __init__(self,input_size,hidden_size):
@@ -112,21 +112,26 @@ class ManyToMany(nn.Module):
         self.attention=Attention(hidden_size,hidden_size)
         self.linear=nn.Linear(2*hidden_size,dec_vocab_size)
         
-    def forward(self,x,y):
+    def forward(self,x,y=None):
         #input shape [N,L]
         enc_h,enc_hidden_states,enc_cell_states=self.encoder(x)
         #[BOS]
         inp=x[:,0:1]
         pred_logits=[]
-        for i in range(1,y.shape[1]):
-            dec_h=self.decoder(inp,\
-                                    (enc_h,enc_cell_states[-1]))
-            combined_h = self.attention(dec_h,enc_hidden_states)
-            logits=self.linear(combined_h)
-            logits=torch.tanh(logits)
-            pred_id=logits.softmax(dim=1).argmax(dim=1,keepdim=True)
-            pred_logits.append(logits)
-            inp=pred_id
-
+        if y!=None:
+        #train
+            for i in range(1,y.shape[1]):
+                dec_h=self.decoder(inp,\
+                                        (enc_h,enc_cell_states[-1]))
+                combined_h = self.attention(dec_h,enc_hidden_states)
+                logits=self.linear(combined_h)
+                logits=torch.tanh(logits)
+                pred_id=logits.softmax(dim=1).argmax(dim=1,keepdim=True)
+                pred_logits.append(logits)
+                #teacher forcing at thresh 0.5
+                inp= y[:,i:i+1] if random.random()>0.5 else pred_id
+        else:
+        #inference
+            pass
         return pred_logits
         
