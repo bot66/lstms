@@ -38,13 +38,21 @@ class Attention(nn.Module):
 #attention in seq2seq,reproduce "Luong attention"(https://arxiv.org/pdf/1508.04025.pdf)
     def __init__(self,decoder_hidden_size,encoder_hidden_size):
         super().__init__()
-        self.score=nn.Linear(decoder_hidden_size,encoder_hidden_size)
+        self.linear=nn.Linear(decoder_hidden_size,encoder_hidden_size)
     def forward(self,x,encoder_states):
-        score=self.score(x)
-        score=score.matmul(encoder_states)
+        x=self.linear(x)
+        scores=[]
+        for state in encoder_states:
+            state_score=x.mul(state).sum(dim=1,keepdim=True)
+            scores.append(state_score)
+        score=torch.cat(scores,dim=1)
         score=score.softmax(dim=1)
+        context=score.unsqueeze(-1).mul(torch.stack(encoder_states,dim=1))
+        context=context.sum(dim=1)
+        #combine dec_h and context
+        combined_h=torch.cat([x,context],dim=1) 
 
-        return x
+        return combined_h
         
         
 # many to one
@@ -101,20 +109,21 @@ class ManyToMany(nn.Module):
         self.ouput_size=dec_vocab_size
         self.encoder=Encoder(enc_vocab_size,enc_emb_size,hidden_size)
         self.decoder=Decoder(dec_vocab_size,dec_emb_size,hidden_size)
-        self.attention=None
-        self.linear=nn.Linear(hidden_size,dec_vocab_size)
+        self.attention=Attention(hidden_size,hidden_size)
+        self.linear=nn.Linear(2*hidden_size,dec_vocab_size)
         
     def forward(self,x,y):
         #input shape [N,L]
-        context,enc_hidden_states,enc_cell_states=self.encoder(x)
+        enc_h,enc_hidden_states,enc_cell_states=self.encoder(x)
         #[BOS]
         inp=x[:,0:1]
         pred_logits=[]
         for i in range(1,y.shape[1]):
             dec_h=self.decoder(inp,\
-                                    (context,enc_cell_states[-1]))
-            
-            logits=self.linear(dec_h)
+                                    (enc_h,enc_cell_states[-1]))
+            combined_h = self.attention(dec_h,enc_hidden_states)
+            logits=self.linear(combined_h)
+            logits=torch.tanh(logits)
             pred_id=logits.softmax(dim=1).argmax(dim=1,keepdim=True)
             pred_logits.append(logits)
             inp=pred_id
