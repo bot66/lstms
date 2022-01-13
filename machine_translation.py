@@ -23,9 +23,9 @@ def run():
     model.to(device)
 
     #hyp
-    epoches = 1
+    epoches =50
     lr=0.01
-    batch_size=8
+    batch_size=128
 
     train_dataloader=DataLoader(EnglishToChinese("datasets/machine_translation/cmn_train.txt",enc_tokenizer,dec_tokenizer),\
                                         batch_size,
@@ -39,10 +39,21 @@ def run():
         for i,b in enumerate(train_dataloader):
             optimizer.zero_grad()
             logits=model(b[0].to(device),b[1].to(device))
-            break
-            # loss = criteria(logits,b[1].to(device))
-            # loss.backward()
-            # optimizer.step()            
+            logits=logits.view(-1,dec_tokenizer.get_vocab_size())
+            target=b[1][:,1:]
+            target=target.reshape(-1).to(device)
+            loss = criteria(logits,target)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
+            if i % 10 == 9: # print average loss every 10 mini batches
+                print('[Epoch:%d, %5d / %5d] loss: %.6f lr: %.6f' %
+                    (e + 1, i + 1, len(train_dataloader),running_loss / 10,schedule.get_last_lr()[0]))
+                running_loss = 0.0
+        schedule.step()
+        
+
+
 
 if __name__=="__main__":
     run()
