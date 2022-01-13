@@ -93,9 +93,9 @@ class Decoder(nn.Module):
     def forward(self,x,prev_states):
         #input shape [N,L]
         x=self.embedding(x)
-        h,h_s,c_s=self.lstm(x,prev_states)
+        h,h_states,c_states=self.lstm(x,prev_states)
 
-        return h
+        return (h,h_states,c_states) 
  
 class ManyToMany(nn.Module):
     #seq2seq with "Luong attention"(https://arxiv.org/pdf/1508.04025.pdf)
@@ -112,26 +112,31 @@ class ManyToMany(nn.Module):
         self.attention=Attention(hidden_size,hidden_size)
         self.linear=nn.Linear(2*hidden_size,dec_vocab_size)
         
-    def forward(self,x,y=None):
+    def forward(self,x,y):
         #input shape [N,L]
         enc_h,enc_hidden_states,enc_cell_states=self.encoder(x)
+        prev_h=enc_h # previous hidden state in decode step
+        prev_c=enc_cell_states[-1] # previous cell state in decode step
         #[BOS]
         inp=x[:,0:1]
         pred_logits=[]
-        if y!=None:
-        #train
-            for i in range(1,y.shape[1]):
-                dec_h=self.decoder(inp,\
-                                        (enc_h,enc_cell_states[-1]))
-                combined_h = self.attention(dec_h,enc_hidden_states)
-                logits=self.linear(combined_h)
-                logits=torch.tanh(logits)
-                pred_id=logits.softmax(dim=1).argmax(dim=1,keepdim=True)
-                pred_logits.append(logits)
-                #teacher forcing at thresh 0.5
-                inp= y[:,i:i+1] if random.random()>0.5 else pred_id
-        else:
-        #inference
-            pass
-        return pred_logits
-        
+        for i in range(1,y.shape[1]):
+            dec_h,dec_hidden_states,dec_cell_states=self.decoder(inp,\
+                                                                (prev_h,prev_c))
+            combined_h = self.attention(dec_h,enc_hidden_states)
+            logits=self.linear(combined_h)
+            logits=torch.tanh(logits)
+            pred_id=logits.softmax(dim=1).argmax(dim=1,keepdim=True)
+            pred_logits.append(logits)
+            #teacher forcing at thresh 0.5
+            inp= y[:,i:i+1] if random.random()>0.5 else pred_id
+            #reset previous step states
+            prev_h=dec_h
+            prev_c=dec_cell_states[-1]
+
+        return torch.stack(pred_logits,dim=1)
+
+    @torch.no_grad()
+    def inference(self,x,eos_id=2,max_words=50):
+        pass
+
