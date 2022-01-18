@@ -23,7 +23,7 @@ def run():
     model.to(device)
 
     #hyp
-    epoches =50
+    epoches=50
     lr=0.001
     batch_size=128
 
@@ -34,6 +34,7 @@ def run():
     criteria=nn.CrossEntropyLoss(ignore_index=0) # ignore padding id
     schedule=MultiStepLR(optimizer,milestones=[int(epoches*0.6),int(epoches*0.8)], gamma=0.1) 
 
+    #train
     for e in range(epoches):
         running_loss = 0.0
         for i,b in enumerate(train_dataloader):
@@ -51,7 +52,24 @@ def run():
                     (e + 1, i + 1, len(train_dataloader),running_loss / 10,schedule.get_last_lr()[0]))
                 running_loss = 0.0
         schedule.step()
-        
+
+    #test
+    #test 10 random samples
+    test_dataloader=DataLoader(EnglishToChinese("datasets/machine_translation/cmn_test.txt",enc_tokenizer,dec_tokenizer),\
+                                        10,
+                                        shuffle=True)
+    with torch.no_grad():
+        model.eval()
+        for i,b in enumerate(test_dataloader):
+            #sample greedy search
+            preds=model.inference(b[0].to(device),b[1].to(device))
+            en_gt=enc_tokenizer.decode_batch(b[0].cpu().numpy())
+            cn_gt=dec_tokenizer.decode_batch(b[1].cpu().numpy())
+            cn_pred=dec_tokenizer.decode_batch(preds.cpu().numpy())
+            for i,(l,m,n) in enumerate(zip(en_gt,cn_gt,cn_pred)):
+                print("Sentence {}=EN:{}|CN:{}|Machine-translation:{} \n".format(i+1,l,m,n))
+
+            break
 
 
 
