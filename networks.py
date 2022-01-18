@@ -39,18 +39,15 @@ class Attention(nn.Module):
     def __init__(self,decoder_hidden_size,encoder_hidden_size):
         super().__init__()
         self.linear=nn.Linear(decoder_hidden_size,encoder_hidden_size)
-    def forward(self,x,encoder_states):
-        x=self.linear(x)
-        scores=[]
-        for state in encoder_states:
-            state_score=x.mul(state).sum(dim=1,keepdim=True)
-            scores.append(state_score)
-        score=torch.cat(scores,dim=1)
-        score=score.softmax(dim=1)
-        context=score.unsqueeze(-1).mul(torch.stack(encoder_states,dim=1))
-        context=context.sum(dim=1)
+    def forward(self,dec_h,encoder_states):
+        x=self.linear(dec_h).unsqueeze(1)
+        stk_enc_states=torch.stack(encoder_states,dim=2)
+        score=torch.bmm(x,stk_enc_states)
+        attn_weight=torch.softmax(score,dim=2)
+
+        context=torch.bmm(attn_weight,stk_enc_states.permute(0,2,1))
         #combine dec_h and context
-        combined_h=torch.cat([x,context],dim=1) 
+        combined_h=torch.cat([dec_h,context.squeeze(1)],dim=1) 
 
         return combined_h
         
@@ -89,7 +86,6 @@ class Decoder(nn.Module):
         super().__init__()
         self.embedding=nn.Embedding(vocab_size,input_size,padding_idx=0)
         self.lstm=LSTM(input_size,hidden_size)
-        self.linear=nn.Linear(hidden_size,vocab_size)
     def forward(self,x,prev_states):
         #input shape [N,L]
         x=self.embedding(x)
@@ -118,7 +114,7 @@ class ManyToMany(nn.Module):
         prev_h=enc_h # previous hidden state in decode step
         prev_c=enc_cell_states[-1] # previous cell state in decode step
         #[BOS]
-        inp=x[:,0:1]
+        inp=y[:,0:1]
         pred_logits=[]
         for i in range(1,y.shape[1]):
             dec_h,dec_hidden_states,dec_cell_states=self.decoder(inp,\
@@ -126,8 +122,8 @@ class ManyToMany(nn.Module):
             combined_h = self.attention(dec_h,enc_hidden_states)
             logits=self.linear(combined_h)
             logits=torch.tanh(logits)
-            pred_id=logits.softmax(dim=1).argmax(dim=1,keepdim=True)
             pred_logits.append(logits)
+            pred_id=logits.softmax(dim=1).argmax(dim=1,keepdim=True)
             #teacher forcing at thresh 0.5
             inp= y[:,i:i+1] if random.random()>0.5 else pred_id
             #reset previous step states
