@@ -135,7 +135,7 @@ class ManyToMany(nn.Module):
         return torch.stack(pred_logits,dim=1)
 
     @torch.no_grad()
-    def inference(self,x,eos_id=2,max_words=20):
+    def inference(self,x,max_words=20):
         #simple greedy search
         #input shape [N,L]
         enc_h,enc_hidden_states,enc_cell_states=self.encoder(x)

@@ -61,8 +61,8 @@ def run():
     with torch.no_grad():
         model.eval()
         for i,b in enumerate(test_dataloader):
-            #sample greedy search
-            preds=model.inference(b[0].to(device),b[1].to(device))
+            #simple greedy search
+            preds=model.inference(b[0].to(device))
             en_gt=enc_tokenizer.decode_batch(b[0].cpu().numpy())
             cn_gt=dec_tokenizer.decode_batch(b[1].cpu().numpy())
             cn_pred=dec_tokenizer.decode_batch(preds.cpu().numpy())
