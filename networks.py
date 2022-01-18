@@ -135,6 +135,29 @@ class ManyToMany(nn.Module):
         return torch.stack(pred_logits,dim=1)
 
     @torch.no_grad()
-    def inference(self,x,eos_id=2,max_words=50):
-        pass
+    def inference(self,x,eos_id=2,max_words=20):
+        #simple greedy search
+        #input shape [N,L]
+        enc_h,enc_hidden_states,enc_cell_states=self.encoder(x)
+        prev_h=enc_h # previous hidden state in decode step
+        prev_c=enc_cell_states[-1] # previous cell state in decode step
+        #[BOS]
+        inp=x[:,0:1]
+        pred_ids=[]
+        for i in range(max_words):
+            dec_h,dec_hidden_states,dec_cell_states=self.decoder(inp,\
+                                                                (prev_h,prev_c))
+            combined_h = self.attention(dec_h,enc_hidden_states)
+            logits=self.linear(combined_h)
+            logits=torch.tanh(logits)
+            logits=self.out(logits)
+            pred_id=logits.softmax(dim=1).argmax(dim=1,keepdim=True)
+            pred_ids.append(pred_id)
+            #teacher forcing at thresh 0.5
+            inp=pred_id
+            #reset previous step states
+            prev_h=dec_h
+            prev_c=dec_cell_states[-1]
+
+        return torch.cat(pred_ids,dim=1)
 
