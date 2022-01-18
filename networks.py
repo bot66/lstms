@@ -106,7 +106,8 @@ class ManyToMany(nn.Module):
         self.encoder=Encoder(enc_vocab_size,enc_emb_size,hidden_size)
         self.decoder=Decoder(dec_vocab_size,dec_emb_size,hidden_size)
         self.attention=Attention(hidden_size,hidden_size)
-        self.linear=nn.Linear(2*hidden_size,dec_vocab_size)
+        self.linear=nn.Linear(2*hidden_size,hidden_size)
+        self.out=nn.Linear(hidden_size,dec_vocab_size)
         
     def forward(self,x,y):
         #input shape [N,L]
@@ -122,6 +123,7 @@ class ManyToMany(nn.Module):
             combined_h = self.attention(dec_h,enc_hidden_states)
             logits=self.linear(combined_h)
             logits=torch.tanh(logits)
+            logits=self.out(logits)
             pred_logits.append(logits)
             pred_id=logits.softmax(dim=1).argmax(dim=1,keepdim=True)
             #teacher forcing at thresh 0.5
