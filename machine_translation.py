@@ -24,7 +24,7 @@ def run():
 
     #hyp
     epoches =50
-    lr=0.01
+    lr=0.001
     batch_size=128
 
     train_dataloader=DataLoader(EnglishToChinese("datasets/machine_translation/cmn_train.txt",enc_tokenizer,dec_tokenizer),\
