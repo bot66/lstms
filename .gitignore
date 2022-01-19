@@ -3,3 +3,4 @@ temp.*
 .vscode/
 __pycache__/
 *.pt
+.DS_Store
